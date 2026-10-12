@@ -4,7 +4,7 @@
 > **Đề tài:** Phân tích mô hình giao thông đô thị và dự báo ùn tắc ngắn hạn sử dụng dữ liệu giao thông thu thập bằng UAV  
 > **Tên tiếng Anh:** Urban Traffic Pattern Analysis and Short-Term Congestion Forecasting Using Drone-Collected Traffic Data  
 > **Hệ quản trị CSDL:** Microsoft SQL Server (T-SQL Engine)  
-> **Tổ chức / Nhóm thực hiện:** QuanTriCSDL  
+> **Tổ chức / Nhóm thực hiện:** .... 
 
 ---
 
