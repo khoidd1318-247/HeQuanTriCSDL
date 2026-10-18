@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException
-from modules.forecasting import (
+from sql.Module3_Traffic_Forecasting.forecasting import (
     build_traffic_time_series,
     evaluate_model_performance,
     run_arima_forecast,
