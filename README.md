@@ -3,7 +3,6 @@
 > **Môn học:** Hệ quản trị cơ sở dữ liệu (Database Management Systems)  
 > **Đề tài:** Phân tích mô hình giao thông đô thị và dự báo ùn tắc ngắn hạn sử dụng dữ liệu giao thông thu thập bằng UAV  
 > **Tên tiếng Anh:** Urban Traffic Pattern Analysis and Short-Term Congestion Forecasting Using Drone-Collected Traffic Data  
-> **Giảng viên hướng dẫn:** Thầy Nguyễn Văn Chiến  
 > **Hệ quản trị CSDL:** Microsoft SQL Server (T-SQL Engine)  
 > **Nhóm sinh viên thực hiện:** Dương Đình Khôi (Khôi), Trần Tiến Dũng, Thùy Trâm, Võ Thị Tuyết Ngân, Huy  
 
