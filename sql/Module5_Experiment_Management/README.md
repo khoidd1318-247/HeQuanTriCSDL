@@ -1,7 +1,8 @@
 # Module 5 — Experiment Management & Reproducibility
 
 **Project:** Urban Traffic Pattern Analysis and Short-Term Congestion Forecasting Using Drone-Collected Traffic Data  
-**Module Lead:** Nguyễn Văn Chiến  
+**Module Lead:** Dương Đình Khôi (Khôi)  
+**Giảng viên hướng dẫn:** Thầy Nguyễn Văn Chiến  
 **DBMS:** Microsoft SQL Server (T-SQL Engine)  
 
 ---
