@@ -8,7 +8,7 @@
     - Average valid speed is 20 km/h or lower.
 */
 
-USE TrafficPatternDemoDB;
+USE UAV_TrafficDB;
 GO
 
 CREATE OR ALTER VIEW dbo.vw_TrafficCongestionHotspots

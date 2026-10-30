@@ -5,7 +5,7 @@
     and src/01_analysis_views.sql.
 */
 
-USE TrafficPatternDemoDB;
+USE UAV_TrafficDB;
 GO
 
 -- Test 1: Check whether the view returns records.

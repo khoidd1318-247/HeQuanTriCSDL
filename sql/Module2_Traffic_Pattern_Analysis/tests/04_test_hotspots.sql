@@ -3,7 +3,7 @@
     Test 04: Potential congestion hotspots
 */
 
-USE TrafficPatternDemoDB;
+USE UAV_TrafficDB;
 GO
 
 IF EXISTS (

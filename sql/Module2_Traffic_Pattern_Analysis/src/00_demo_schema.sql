@@ -13,14 +13,14 @@
 */
 
 -- Step 1: Create the demo database if it does not exist.
-IF DB_ID(N'TrafficPatternDemoDB') IS NULL
+IF DB_ID(N'UAV_TrafficDB') IS NULL
 BEGIN
-    EXEC(N'CREATE DATABASE TrafficPatternDemoDB');
+    EXEC(N'CREATE DATABASE UAV_TrafficDB');
 END;
 GO
 
 -- Step 2: Use the demo database.
-USE TrafficPatternDemoDB;
+USE UAV_TrafficDB;
 GO
 
 -- Step 3: Create the road segments table.

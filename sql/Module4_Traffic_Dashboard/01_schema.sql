@@ -1,7 +1,7 @@
-IF DB_ID(N'TrafficDB') IS NULL
-    CREATE DATABASE TrafficDB;
+IF DB_ID(N'UAV_TrafficDB') IS NULL
+    CREATE DATABASE UAV_TrafficDB;
 GO
-USE TrafficDB;
+USE UAV_TrafficDB;
 GO
 
 IF OBJECT_ID(N'dbo.TrafficObservation', N'U') IS NULL

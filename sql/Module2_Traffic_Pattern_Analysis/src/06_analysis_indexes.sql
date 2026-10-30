@@ -4,7 +4,7 @@
     Purpose: Create a demo index for traffic time-range queries.
 */
 
-USE TrafficPatternDemoDB;
+USE UAV_TrafficDB;
 GO
 
 IF NOT EXISTS (

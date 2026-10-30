@@ -4,7 +4,7 @@
     Demo valid range: 0 to 200 km/h.
 */
 
-USE TrafficPatternDemoDB;
+USE UAV_TrafficDB;
 GO
 
 IF EXISTS (

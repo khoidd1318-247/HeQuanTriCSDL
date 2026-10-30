@@ -7,7 +7,7 @@
     Adjust this rule after the real dataset is confirmed.
 */
 
-USE TrafficPatternDemoDB;
+USE UAV_TrafficDB;
 GO
 
 CREATE OR ALTER VIEW dbo.vw_TrafficSpeed5Min

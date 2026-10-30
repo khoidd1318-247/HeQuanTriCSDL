@@ -4,7 +4,7 @@
     Purpose: Query traffic analysis for a selected time range.
 */
 
-USE TrafficPatternDemoDB;
+USE UAV_TrafficDB;
 GO
 
 CREATE OR ALTER PROCEDURE dbo.usp_TrafficPatternSummary

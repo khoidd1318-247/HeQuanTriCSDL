@@ -4,7 +4,7 @@
     Purpose: Create a reusable view for traffic analysis.
 */
 
-USE TrafficPatternDemoDB;
+USE UAV_TrafficDB;
 GO
 
 CREATE OR ALTER VIEW dbo.vw_TrafficAnalysisBase

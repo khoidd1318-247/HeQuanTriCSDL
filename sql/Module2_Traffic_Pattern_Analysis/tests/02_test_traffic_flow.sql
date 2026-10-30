@@ -3,7 +3,7 @@
     Test 02: Traffic flow aggregation
 */
 
-USE TrafficPatternDemoDB;
+USE UAV_TrafficDB;
 GO
 
 IF EXISTS (

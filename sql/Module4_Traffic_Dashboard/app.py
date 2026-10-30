@@ -74,7 +74,7 @@ with st.sidebar:
             st.info("Tải file CSV có các cột chuẩn hóa. Xem README.md.")
     else:
         server = st.text_input("Server", value=os.getenv("MSSQL_SERVER", "localhost"))
-        database = st.text_input("Database", value=os.getenv("MSSQL_DATABASE", "TrafficDB"))
+        database = st.text_input("Database", value=os.getenv("MSSQL_DATABASE", "UAV_TrafficDB"))
         driver = st.text_input("ODBC Driver", value=os.getenv("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server"))
         table = st.text_input("Bảng (schema.table)", value="dbo.TrafficObservation")
         trusted = st.checkbox("Windows Authentication", value=True)

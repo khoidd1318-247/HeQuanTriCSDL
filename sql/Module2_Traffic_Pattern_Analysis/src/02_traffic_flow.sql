@@ -4,7 +4,7 @@
     Purpose: Aggregate observed vehicles into 5-minute intervals.
 */
 
-USE TrafficPatternDemoDB;
+USE UAV_TrafficDB;
 GO
 
 CREATE OR ALTER VIEW dbo.vw_TrafficFlow5Min

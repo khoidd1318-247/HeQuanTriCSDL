@@ -33,3 +33,4 @@ build/
 # Large datasets (CSV/Raw)
 data/*.csv
 !data/.gitkeep
+!data/uav_traffic_sample.csv
