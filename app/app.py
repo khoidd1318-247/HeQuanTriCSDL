@@ -75,6 +75,19 @@ st.markdown('<div class="sub-header">Hệ thống Phân tích Mô hình Giao th�
 # ===================================================================================
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/3233/3233515.png", width=70)
+    st.subheader("Phân quyền Người dùng (FR1)")
+    user_role = st.selectbox(
+        "Vai trò đăng nhập (RBAC):",
+        [
+            "Quản trị viên (Administrator)",
+            "Nhà nghiên cứu (Researcher)",
+            "Chuyên viên phân tích (Analyst)",
+            "Sinh viên (Student)",
+        ],
+        index=0,
+    )
+    st.caption(f"🛡️ **Vai trò hiện tại:** {user_role}")
+    st.markdown("---")
     st.subheader("Cơ sở dữ liệu T-SQL")
     
     if DB_CONNECTED:
