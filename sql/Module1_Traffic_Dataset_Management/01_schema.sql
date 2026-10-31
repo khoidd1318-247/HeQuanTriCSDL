@@ -1,5 +1,9 @@
 
+IF DB_ID(N'UAV_TrafficDB') IS NULL
+    CREATE DATABASE UAV_TrafficDB;
+GO
 USE UAV_TrafficDB;
+
 GO
 
 -- 1. Bang quan ly tap du lieu
