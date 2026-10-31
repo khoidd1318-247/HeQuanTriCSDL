@@ -25,7 +25,20 @@ def load_sql(server, database, driver, trusted, username, password, table):
     # Table name is configured by the app owner; keep it a simple schema-qualified identifier.
     if not all(part.replace("_", "").isalnum() for part in table.split(".")):
         raise ValueError("Tên bảng không hợp lệ.")
-    return pd.read_sql(text(f"SELECT * FROM {table}"), engine)
+    df_sql = pd.read_sql(text(f"SELECT * FROM {table}"), engine)
+    if df_sql.empty and table.lower().endswith("trafficobservation"):
+        sample_csv = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "uav_traffic_sample.csv"))
+        if os.path.exists(sample_csv):
+            df_seed = pd.read_csv(sample_csv).rename(columns={
+                "dataset": "Dataset", "recording_id": "RecordingID", "track_id": "TrackID",
+                "timestamp_sec": "TimestampSec", "vehicle_type": "VehicleType",
+                "x": "X", "y": "Y", "speed_kmh": "SpeedKmh",
+                "density_veh_per_km": "DensityVehPerKm", "flow_veh_per_min": "FlowVehPerMin"
+            })
+            cols = ["Dataset", "RecordingID", "TrackID", "TimestampSec", "VehicleType", "X", "Y", "SpeedKmh", "DensityVehPerKm", "FlowVehPerMin"]
+            df_seed[cols].to_sql("TrafficObservation", engine, schema="dbo", if_exists="append", index=False)
+            df_sql = pd.read_sql(text(f"SELECT * FROM {table}"), engine)
+    return df_sql
 
 def normalize(df):
     df = df.copy()
@@ -33,7 +46,7 @@ def normalize(df):
     aliases = {
         "source": "dataset", "dataset_name": "dataset",
         "recordingid": "recording_id", "recording": "recording_id",
-        "trackid": "track_id", "frame_time": "timestamp_sec", "time": "timestamp_sec",
+        "trackid": "track_id", "timestampsec": "timestamp_sec", "vehicletype": "vehicle_type", "speedkmh": "speed_kmh", "densityvehperkm": "density_veh_per_km", "flowvehpermin": "flow_veh_per_min", "frame_time": "timestamp_sec", "time": "timestamp_sec",
         "vehicle": "vehicle_type", "type": "vehicle_type",
         "xcenter": "x", "ycenter": "y", "xcenter_m": "x", "ycenter_m": "y",
         "speed": "speed_kmh", "avg_speed": "speed_kmh",
