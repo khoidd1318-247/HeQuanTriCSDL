@@ -108,11 +108,23 @@ with st.sidebar:
         rec_list = ['REC_IND_01', 'REC_IND_02', 'REC_PNEUMA_01']
 
     selected_rec = st.selectbox("Chọn đợt bay:", rec_list, index=0)
-    selected_window = st.selectbox("Khoảng gom cụm (Window):", ['5min', '1min', '15min', '30min'], index=0)
+    is_admin = "Administrator" in user_role
+    is_researcher = "Researcher" in user_role
+    is_student = "Student" in user_role
+
+    selected_window = st.selectbox(
+        "Khoảng gom cụm (Window):",
+        ['5min', '1min', '15min', '30min'],
+        index=0,
+        disabled=not (is_admin or is_researcher),
+        help="Chỉ Quản trị viên và Nhà nghiên cứu mới có quyền đổi khoảng gom cụm thực nghiệm."
+    )
 
     st.markdown("---")
     st.subheader("Tác vụ T-SQL nhanh")
-    if st.button("▶️ Chạy Kiểm định (sp_ValidateTrafficData)"):
+    if not is_admin:
+        st.caption("🔒 Chỉ **Quản trị viên (Administrator)** được phép thực thi Stored Procedures trực tiếp.")
+    if st.button("▶️ Chạy Kiểm định (sp_ValidateTrafficData)", disabled=not is_admin):
         with st.spinner("Đang thực thi Stored Procedure..."):
             if DB_CONNECTED:
                 df_val = call_procedure("dbo.sp_ValidateTrafficData", [selected_rec])
@@ -121,7 +133,7 @@ with st.sidebar:
             else:
                 st.info("Demo: Dữ liệu hợp lệ 100%.")
 
-    if st.button("▶️ Tái gom cụm (sp_AggregateTrafficTimeSeries)"):
+    if st.button("▶️ Tái gom cụm (sp_AggregateTrafficTimeSeries)", disabled=not is_admin):
         with st.spinner("Đang tính toán gom cụm chuỗi thời gian..."):
             if DB_CONNECTED:
                 win_num = int(selected_window.replace('min', ''))
@@ -416,19 +428,22 @@ with tab6:
     Các sự kiện được ghi tự động bởi **Triggers** và **Stored Procedures** trong SQL Server nhằm đảm bảo tính toàn vẹn và bảo mật dữ liệu môn HQTCSDL.
     """)
     
-    if DB_CONNECTED:
-        df_audit = run_query("SELECT TOP 50 LogID, LogTime, Username, ActionType, TargetTable, RecordKey, Description, HostName FROM dbo.AUDIT_LOGS ORDER BY LogID DESC")
+    if not is_admin:
+        st.warning(f"🔒 **Truy cập bị từ chối (Access Denied):** Vai trò hiện tại (**{user_role}**) không có quyền xem Nhật ký Kiểm toán Hệ thống (`dbo.AUDIT_LOGS`). Vui lòng chuyển sang vai trò **Quản trị viên (Administrator)** ở thanh công cụ bên trái để mở khóa.")
     else:
-        df_audit = pd.DataFrame({
-            "LogID": [1, 2],
-            "LogTime": [datetime.now(), datetime.now()],
-            "Username": ["admin", "system"],
-            "ActionType": ["INSERT", "DATA_VALIDATION"],
-            "TargetTable": ["RECORDINGS", "TRAFFIC_TIME_SERIES"],
-            "Description": ["Thêm mới đợt quay drone", "Gom cụm chuỗi thời gian hoàn tất"]
-        })
+        if DB_CONNECTED:
+            df_audit = run_query("SELECT TOP 50 LogID, LogTime, Username, ActionType, TargetTable, RecordKey, Description, HostName FROM dbo.AUDIT_LOGS ORDER BY LogID DESC")
+        else:
+            df_audit = pd.DataFrame({
+                "LogID": [1, 2],
+                "LogTime": [datetime.now(), datetime.now()],
+                "Username": ["admin", "system"],
+                "ActionType": ["INSERT", "DATA_VALIDATION"],
+                "TargetTable": ["RECORDINGS", "TRAFFIC_TIME_SERIES"],
+                "Description": ["Thêm mới đợt quay drone", "Gom cụm chuỗi thời gian hoàn tất"]
+            })
 
-    st.dataframe(df_audit, use_container_width=True, hide_index=True)
+        st.dataframe(df_audit, use_container_width=True, hide_index=True)
     
     st.markdown("---")
     st.info("💡 **Gợi ý cho buổi bảo vệ:** Nhóm có thể mở file `sql/06_transactions_and_concurrency.sql` để biểu diễn Transaction rollback và giải thích cơ chế Deadlock cho thầy cô!")

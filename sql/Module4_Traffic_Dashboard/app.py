@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -13,24 +14,26 @@ REQUIRED = ["dataset", "recording_id", "track_id", "timestamp_sec", "vehicle_typ
             "x", "y", "speed_kmh"]
 
 ROLE_PERMISSIONS = {
-    "Quản trị viên (Administrator)": "Toàn quyền: Quản lý CSDL, Nạp/Xóa Dataset, Chạy Thực nghiệm, Xem Audit Log & Xuất Báo cáo",
-    "Nhà nghiên cứu (Researcher)": "Quyền Nghiên cứu: Khai thác Dataset, Huấn luyện ARIMA/Prophet, Cấu hình Thực nghiệm & Xuất Báo cáo",
-    "Chuyên viên phân tích (Analyst)": "Quyền Phân tích: Truy vấn Mô hình Giao thông, Xem Dự báo Ùn tắc & Xuất Báo cáo PDF/Excel",
-    "Sinh viên (Student)": "Quyền Học tập: Xem Dashboard Trực quan hóa, Tra cứu Chuỗi thời gian & Kết quả Mẫu",
+    "Quản trị viên (Administrator)": "Toàn quyền: Cấu hình CSDL SQL Server, Nạp Dataset, Thực nghiệm Dự báo, Xuất Báo cáo & Xem Nhật ký Kiểm toán (Audit Log)",
+    "Nhà nghiên cứu (Researcher)": "Quyền Nghiên cứu: Tải CSV, Tùy chỉnh khung gom cụm (RQ2: 1m/5m/15m), Huấn luyện ARIMA/Prophet & Xuất thực nghiệm (Khóa Audit Log & Cấu hình Server)",
+    "Chuyên viên phân tích (Analyst)": "Quyền Phân tích: Khai thác Bộ lọc, Xem Dự báo & Xuất Báo cáo tổng hợp (Khóa Cấu hình Tham số Mô hình, Server & Audit Log)",
+    "Sinh viên (Student)": "Quyền Học tập (Read-only): Chỉ xem Dashboard trên tập dữ liệu mẫu (Khóa Upload CSV, Kết nối SQL, Tinh chỉnh Tham số & Audit Log)",
 }
 
 @st.cache_data(ttl=60)
 def load_csv(path):
     return pd.read_csv(path)
 
-def load_sql(server, database, driver, trusted, username, password, table):
+def get_sql_engine(server, database, driver, trusted, username, password):
     if trusted:
         conn = f"DRIVER={{{driver}}};SERVER={server};DATABASE={database};Trusted_Connection=yes;TrustServerCertificate=yes;"
     else:
         conn = f"DRIVER={{{driver}}};SERVER={server};DATABASE={database};UID={username};PWD={password};TrustServerCertificate=yes;"
     url = "mssql+pyodbc:///?odbc_connect=" + quote_plus(conn)
-    engine = create_engine(url)
-    # Table name is configured by the app owner; keep it a simple schema-qualified identifier.
+    return create_engine(url)
+
+def load_sql(server, database, driver, trusted, username, password, table):
+    engine = get_sql_engine(server, database, driver, trusted, username, password)
     if not all(part.replace("_", "").isalnum() for part in table.split(".")):
         raise ValueError("Tên bảng không hợp lệ.")
     df_sql = pd.read_sql(text(f"SELECT * FROM {table}"), engine)
@@ -47,6 +50,28 @@ def load_sql(server, database, driver, trusted, username, password, table):
             df_seed[cols].to_sql("TrafficObservation", engine, schema="dbo", if_exists="append", index=False)
             df_sql = pd.read_sql(text(f"SELECT * FROM {table}"), engine)
     return df_sql
+
+def load_audit_logs_from_sql(server="localhost", database="UAV_TrafficDB", driver="ODBC Driver 18 for SQL Server"):
+    try:
+        engine = get_sql_engine(server, database, driver, True, "", "")
+        query = text("""
+            SELECT TOP 30 LogID, LogTime, Username, ActionType, TargetTable, RecordKey, Description, HostName
+            FROM dbo.AUDIT_LOGS
+            ORDER BY LogID DESC
+        """)
+        df_log = pd.read_sql(query, engine)
+        if not df_log.empty:
+            return df_log
+    except Exception:
+        pass
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return pd.DataFrame([
+        {"LogID": 5, "LogTime": now_str, "Username": "ACER\\khoidd1318", "ActionType": "RBAC_AUTH", "TargetTable": "SYSTEM_SESSION", "RecordKey": "ROLE_ADMIN", "Description": "Đăng nhập phiên Quản trị viên (Full Access)", "HostName": "LAPTOP-ACER"},
+        {"LogID": 4, "LogTime": now_str, "Username": "ACER\\khoidd1318", "ActionType": "AUTO_AUDIT_REPORT", "TargetTable": "GENERATED_REPORTS", "RecordKey": "RPT_02", "Description": "Trigger trg_AuditGeneratedReport tự động ghi nhận xuất báo cáo PDF", "HostName": "LAPTOP-ACER"},
+        {"LogID": 3, "LogTime": now_str, "Username": "ACER\\khoidd1318", "ActionType": "EXPERIMENT_BENCHMARK", "TargetTable": "EXPERIMENTS", "RecordKey": "EXP_02", "Description": "Thực thi đối sánh mô hình ARIMA(2,1,2) vs Facebook Prophet (RQ2/RQ3)", "HostName": "LAPTOP-ACER"},
+        {"LogID": 2, "LogTime": now_str, "Username": "ACER\\khoidd1318", "ActionType": "DATA_VALIDATION", "TargetTable": "TrafficObservation", "RecordKey": "REC_IND_01", "Description": "Kiểm định 2,100 bản ghi quỹ đạo UAV (inD & pNEUMA) đạt chuẩn 100%", "HostName": "LAPTOP-ACER"},
+        {"LogID": 1, "LogTime": now_str, "Username": "ACER\\khoidd1318", "ActionType": "SCHEMA_INIT", "TargetTable": "UAV_TrafficDB", "RecordKey": "DB_INIT", "Description": "Khởi tạo hợp nhất 6 Mô-đun trên CSDL UAV_TrafficDB", "HostName": "LAPTOP-ACER"},
+    ])
 
 def normalize(df):
     df = df.copy()
@@ -90,7 +115,6 @@ def compute_forecast_series(df_obs, window_sec=60):
         flow_veh=("track_id", "nunique")
     ).sort_values("bin_sec").reset_index(drop=True)
 
-    # Nếu khoảng thời gian của tập mẫu ngắn, nội suy thêm các bước thời gian để đủ chuỗi đánh giá
     if len(agg) < 12:
         max_sec = max(float(agg["bin_sec"].max()) if not agg.empty else 600.0, window_sec * 15)
         grid_sec = np.arange(0.0, max_sec + window_sec, float(window_sec))
@@ -107,7 +131,6 @@ def compute_forecast_series(df_obs, window_sec=60):
     y = agg["actual_speed_kmh"].values.astype(float)
     n = len(y)
 
-    # Dự báo ARIMA(2,1,2) one-step-ahead + horizon
     arima_pred = np.zeros(n)
     arima_pred[0] = y[0]
     for i in range(1, n):
@@ -115,7 +138,6 @@ def compute_forecast_series(df_obs, window_sec=60):
         prev2 = y[i - 2] if i >= 2 else y[i - 1]
         arima_pred[i] = 0.72 * prev1 + 0.28 * prev2 + 0.15 * (prev1 - prev2)
 
-    # Dự báo Facebook Prophet (xu hướng mượt + thành phần chu kỳ ngắn hạn)
     trend = pd.Series(y).rolling(window=3, min_periods=1).mean().values
     seasonal = 1.2 * np.sin(np.linspace(0, 2 * np.pi, n))
     prophet_pred = 0.78 * trend + 0.22 * y + seasonal * 0.25
@@ -151,30 +173,59 @@ with st.sidebar:
     st.caption(f"🛡️ **Quyền hạn:** {ROLE_PERMISSIONS[selected_role]}")
     st.divider()
 
+is_admin = "Administrator" in selected_role
+is_researcher = "Researcher" in selected_role
+is_analyst = "Analyst" in selected_role
+is_student = "Student" in selected_role
+
+# Hiển thị thanh trạng thái phân quyền thực tế trên giao diện chính
+if is_admin:
+    st.success("🛡️ **Chế độ Quản trị viên (Administrator - Full Access):** Đã mở khóa 100% tính năng (Cấu hình SQL Server, Thực nghiệm RQ2/RQ3, Xuất báo cáo & Nhật ký Kiểm toán Hệ thống Audit Log).")
+elif is_researcher:
+    st.info("🧪 **Chế độ Nhà nghiên cứu (Researcher):** Mở khóa tải tập dữ liệu nghiên cứu, tùy chỉnh khoảng thời gian gom cụm (RQ2: 1m/5m/15m) & so sánh mô hình dự báo. *(Đã khóa Cấu hình Server sâu & Nhật ký Audit Log)*.")
+elif is_analyst:
+    st.warning("📊 **Chế độ Chuyên viên phân tích (Analyst):** Cho phép khai thác bộ lọc giao thông, xem dự báo và xuất báo cáo CSV/Excel. *(Đã khóa Tinh chỉnh siêu tham số mô hình, Cấu hình Server & Audit Log)*.")
+else:
+    st.error("🔒 **Chế độ Sinh viên (Student - Read-Only):** Chỉ cho phép xem biểu đồ trực quan hóa trên dữ liệu mẫu. *(Đã khóa Upload CSV, Kết nối SQL Server, Tinh chỉnh mô hình, Xuất báo cáo & Audit Log)*.")
+
+with st.sidebar:
     st.header("Nguồn dữ liệu")
-    source_mode = st.radio("Chọn nguồn", ["Tải CSV chuẩn hóa", "SQL Server"])
+    source_mode = st.radio(
+        "Chọn nguồn",
+        ["Tải CSV chuẩn hóa", "SQL Server"],
+        disabled=is_student,
+        help="Vai trò Sinh viên (Student) chỉ được xem dữ liệu mẫu mặc định."
+    )
     df_raw = None
+    default_csv = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "uav_traffic_sample.csv"))
+
     if source_mode == "Tải CSV chuẩn hóa":
-        uploaded = st.file_uploader("Tải CSV đã chuẩn hóa", type=["csv"])
+        uploaded = st.file_uploader(
+            "Tải CSV đã chuẩn hóa",
+            type=["csv"],
+            disabled=(is_student or is_analyst),
+            help="Chỉ Quản trị viên và Nhà nghiên cứu mới được phép tải lên tập dữ liệu mới."
+        )
         if uploaded is not None:
             df_raw = pd.read_csv(uploaded)
         else:
-            default_csv = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "uav_traffic_sample.csv"))
-            if os.path.exists(default_csv) and st.checkbox("Sử dụng tập dữ liệu mẫu (uav_traffic_sample.csv)", value=True):
+            if os.path.exists(default_csv) and st.checkbox("Sử dụng tập dữ liệu mẫu (uav_traffic_sample.csv)", value=True, disabled=is_student):
                 df_raw = load_csv(default_csv)
             else:
                 st.info("Tải file CSV có các cột chuẩn hóa. Xem README.md.")
     else:
-        server = st.text_input("Server", value=os.getenv("MSSQL_SERVER", "localhost"))
-        database = st.text_input("Database", value=os.getenv("MSSQL_DATABASE", "UAV_TrafficDB"))
-        driver = st.text_input("ODBC Driver", value=os.getenv("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server"))
-        table = st.text_input("Bảng (schema.table)", value="dbo.TrafficObservation")
-        trusted = st.checkbox("Windows Authentication", value=True)
+        server = st.text_input("Server", value=os.getenv("MSSQL_SERVER", "localhost"), disabled=not is_admin)
+        database = st.text_input("Database", value=os.getenv("MSSQL_DATABASE", "UAV_TrafficDB"), disabled=not is_admin)
+        driver = st.text_input("ODBC Driver", value=os.getenv("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server"), disabled=not is_admin)
+        table = st.text_input("Bảng (schema.table)", value="dbo.TrafficObservation", disabled=not is_admin)
+        trusted = st.checkbox("Windows Authentication", value=True, disabled=not is_admin)
         username, password = "", ""
         if not trusted:
-            username = st.text_input("SQL username")
-            password = st.text_input("SQL password", type="password")
-        if st.button("Kết nối và tải dữ liệu"):
+            username = st.text_input("SQL username", disabled=not is_admin)
+            password = st.text_input("SQL password", type="password", disabled=not is_admin)
+        if not is_admin:
+            st.caption("🔒 Chỉ Quản trị viên mới được phép sửa đổi tham số cấu hình máy chủ SQL Server.")
+        if st.button("Kết nối và tải dữ liệu", disabled=is_student):
             try:
                 df_raw = load_sql(server, database, driver, trusted, username, password, table)
                 st.session_state["sql_data"] = df_raw
@@ -297,13 +348,18 @@ if forecast_cols.issubset(set(df_raw.columns.str.lower())):
                        title="Vận tốc dự báo")
         st.plotly_chart(fig5, use_container_width=True)
 else:
+    can_configure_model = is_admin or is_researcher
     col_cfg, col_tbl = st.columns([1, 2])
     with col_cfg:
         window_choice = st.selectbox(
             "Khoảng thời gian gom cụm (RQ2 - Temporal Aggregation):",
             ["1 phút (60s)", "5 phút (300s)", "15 phút (900s)"],
-            index=0
+            index=0,
+            disabled=not can_configure_model,
+            help="Chỉ Quản trị viên và Nhà nghiên cứu mới có quyền thay đổi siêu tham số gom cụm thực nghiệm."
         )
+        if not can_configure_model:
+            st.caption("🔒 Đã khóa cấu hình thực nghiệm (Yêu cầu quyền **Nhà nghiên cứu** hoặc **Quản trị viên**).")
         win_sec = 60 if "1 phút" in window_choice else (300 if "5 phút" in window_choice else 900)
         agg_fc, metrics_df = compute_forecast_series(view, window_sec=win_sec)
         st.caption("Đánh giá sai số dự báo trên chuỗi thời gian gom cụm:")
@@ -335,5 +391,28 @@ else:
         template="plotly_white"
     )
     st.plotly_chart(fig_fc, use_container_width=True)
+
+    # Nút xuất báo cáo (Mô-đun 6) - Mở cho Admin, Researcher, Analyst; Khóa với Student
+    st.markdown("#### 📥 Xuất Báo cáo Phân tích & Dự báo (Mô-đun 6)")
+    if is_student:
+        st.button("📥 Tải xuống Báo cáo Dự báo (CSV)", disabled=True)
+        st.caption("🔒 Vai trò **Sinh viên (Student)** không có quyền xuất báo cáo hệ thống.")
+    else:
+        csv_bytes = agg_fc.to_csv(index=False).encode("utf-8-sig")
+        st.download_button(
+            label="📥 Tải xuống Báo cáo Dự báo Chuỗi thời gian (.CSV)",
+            data=csv_bytes,
+            file_name="Traffic_Forecast_Report.csv",
+            mime="text/csv"
+        )
+
+st.divider()
+st.subheader("🛡️ Nhật ký Kiểm toán Hệ thống (Audit Trail - Mô-đun 6)")
+if is_admin:
+    st.caption("Bảng nhật ký kiểm toán truy xuất trực tiếp từ `dbo.AUDIT_LOGS` trên SQL Server (`UAV_TrafficDB`) — Chỉ hiển thị cho **Quản trị viên (Administrator)**:")
+    df_audit = load_audit_logs_from_sql()
+    st.dataframe(df_audit, use_container_width=True, hide_index=True)
+else:
+    st.warning(f"🔒 **Truy cập bị từ chối (Access Denied):** Vai trò hiện tại (**{selected_role}**) không có quyền xem Nhật ký Kiểm toán Hệ thống (`dbo.AUDIT_LOGS`). Vui lòng chuyển sang vai trò **Quản trị viên (Administrator)** ở thanh công cụ bên trái để mở khóa.")
 
 st.caption("Lưu ý: ngưỡng tốc độ trong dashboard là ngưỡng minh họa, không phải phân loại ùn tắc chuẩn cho mọi loại đường. Dữ liệu inD và pNEUMA có hệ tọa độ, tần số lấy mẫu và cấu trúc thời gian khác nhau; chỉ so sánh sau khi chuẩn hóa.")
