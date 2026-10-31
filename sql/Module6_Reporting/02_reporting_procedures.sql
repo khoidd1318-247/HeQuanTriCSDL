@@ -1,7 +1,8 @@
 -- ===================================================================================
--- Module 6: Reporting (Export to PDF & Excel)
+-- Module 6: Reporting & Audit Trail (Export to PDF & Excel)
 -- File 02: Stored Procedures for Data Extraction & Report Logging
 -- Project: Urban Traffic Pattern Analysis and Short-Term Congestion Forecasting
+-- Module Lead: Dương Đình Khôi (Khôi)
 -- DBMS: Microsoft SQL Server (T-SQL)
 -- ===================================================================================
 
@@ -9,88 +10,70 @@ USE UAV_TrafficDB;
 GO
 
 -- 1. SP: sp_GetTrafficReportData - Trích xuất dữ liệu tổng hợp phục vụ xuất báo cáo phân tích giao thông
-IF OBJECT_ID('dbo.sp_GetTrafficReportData', 'P') IS NOT NULL DROP PROCEDURE dbo.sp_GetTrafficReportData;
-GO
-CREATE PROCEDURE dbo.sp_GetTrafficReportData
-    @RecordingID VARCHAR(20)
+CREATE OR ALTER PROCEDURE dbo.sp_GetTrafficReportData
+    @RoadSegmentID VARCHAR(20) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- Phần 1: Thông tin tổng quan đợt bay
+    -- Phần 1: Chuỗi thời gian gom cụm 5 phút (Lưu lượng, Mật độ, Vận tốc)
     SELECT 
-        RecordingID,
-        LocationName,
-        City,
-        RecordingDate,
-        StartTime,
-        EndTime,
-        DroneAltitude_m,
-        FrameRate_Hz,
-        TotalVehicles,
-        DatasetSource
-    FROM dbo.RECORDINGS
-    WHERE RecordingID = @RecordingID;
-
-    -- Phần 2: Chuỗi thời gian gom cụm
-    SELECT 
+        DatasetVersionID,
+        RoadSegmentID,
+        RoadSegmentName,
         WindowTimestamp,
-        AggregationWindow,
-        VehicleCount,
-        Flow_veh_per_h,
-        Density_veh_per_km,
-        AvgSpeed_kmh,
-        CongestionLevel
-    FROM dbo.TRAFFIC_TIME_SERIES
-    WHERE RecordingID = @RecordingID
-    ORDER BY WindowTimestamp ASC;
+        [SoLuongXe] AS VehicleCount,
+        [LuuLuong_xe_gio] AS Flow_veh_per_h,
+        [MatDo_xe_km] AS Density_veh_per_km,
+        [VanTocTB_kmh] AS AvgSpeed_kmh,
+        [MucDoUnTac] AS CongestionLevel
+    FROM dbo.vw_TrafficPatternReport
+    WHERE (@RoadSegmentID IS NULL OR RoadSegmentID = @RoadSegmentID)
+    ORDER BY WindowTimestamp ASC, RoadSegmentID ASC;
 
-    -- Phần 3: Top 5 điểm nóng ùn tắc không gian
+    -- Phần 2: Top điểm nóng ùn tắc giao thông
     SELECT TOP 5
-        Spatial_Grid_X,
-        Spatial_Grid_Y,
-        TrajectoryPointsCount,
+        RoadSegmentID,
+        RoadSegmentName,
+        WindowTimestamp,
+        ObservedVehicleCount,
         AvgGridSpeed_kmh,
+        Density_veh_per_km,
         CongestionCategory
     FROM dbo.vw_CongestionHotspotReport
-    WHERE RecordingID = @RecordingID
-    ORDER BY TrajectoryPointsCount DESC;
+    WHERE (@RoadSegmentID IS NULL OR RoadSegmentID = @RoadSegmentID)
+    ORDER BY AvgGridSpeed_kmh ASC, ObservedVehicleCount DESC;
 END;
 GO
 
 -- 2. SP: sp_GetModelComparisonReportData - Trích xuất bảng đối sánh mô hình phục vụ báo cáo hiệu năng
-IF OBJECT_ID('dbo.sp_GetModelComparisonReportData', 'P') IS NOT NULL DROP PROCEDURE dbo.sp_GetModelComparisonReportData;
-GO
-CREATE PROCEDURE dbo.sp_GetModelComparisonReportData
+CREATE OR ALTER PROCEDURE dbo.sp_GetModelComparisonReportData
     @RecordingID VARCHAR(20) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
     SELECT 
-        E.ExperimentID,
-        E.ExperimentName AS [Tên thực nghiệm],
-        E.ModelAlgorithm AS [Mô hình],
-        E.AggregationWindow AS [Cửa sổ],
-        E.TrainTestRatio AS [Tỷ lệ Train],
-        E.Hyperparameters AS [Siêu tham số],
-        E.RandomSeed AS [Seed tái lập],
-        M.MAE AS [Sai số MAE],
-        M.RMSE AS [Sai số RMSE],
-        M.MAPE AS [Sai số MAPE (%)],
-        M.R2_Score AS [Hệ số R²],
-        E.CreatedAt AS [Thời gian thực thi]
-    FROM dbo.EXPERIMENTS E
-    LEFT JOIN dbo.EXPERIMENT_METRICS M ON E.ExperimentID = M.ExperimentID
-    WHERE (@RecordingID IS NULL OR E.RecordingID = @RecordingID)
-    ORDER BY M.RMSE ASC;
+        ExperimentID,
+        ExperimentName AS [Tên thực nghiệm],
+        ModelAlgorithm AS [Mô hình],
+        AggregationWindow AS [Cửa sổ],
+        TrainTestRatio AS [Tỷ lệ Train],
+        Hyperparameters AS [Siêu tham số],
+        RandomSeed AS [Seed tái lập],
+        MAE AS [Sai số MAE],
+        RMSE AS [Sai số RMSE],
+        [MAPE_PhanTram] AS [Sai số MAPE (%)],
+        R2_Score AS [Hệ số R²],
+        [ExecutionTime] AS [Thời gian thực thi]
+    FROM dbo.vw_ForecastingPerformanceReport
+    WHERE (@RecordingID IS NULL OR RecordingID = @RecordingID)
+    ORDER BY RMSE ASC;
 END;
 GO
 
 -- 3. SP: sp_LogReportExport - Ghi nhận lịch sử xuất báo cáo vào CSDL và Audit Trail
-IF OBJECT_ID('dbo.sp_LogReportExport', 'P') IS NOT NULL DROP PROCEDURE dbo.sp_LogReportExport;
-GO
-CREATE PROCEDURE dbo.sp_LogReportExport
+CREATE OR ALTER PROCEDURE dbo.sp_LogReportExport
     @ReportTitle    NVARCHAR(200),
     @ReportType     VARCHAR(50),
     @FileFormat     VARCHAR(10),

@@ -5,6 +5,12 @@
 -- DBMS: Microsoft SQL Server (T-SQL)
 -- ===================================================================================
 
+IF DB_ID(N'UAV_TrafficDB') IS NULL
+BEGIN
+    EXEC(N'CREATE DATABASE UAV_TrafficDB');
+END;
+GO
+
 USE UAV_TrafficDB;
 GO
 
