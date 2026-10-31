@@ -37,6 +37,13 @@ BEGIN
         Notes               NVARCHAR(500)
     );
 END
+ELSE
+BEGIN
+    IF COL_LENGTH('dbo.EXPERIMENTS', 'Notes') IS NULL
+        ALTER TABLE dbo.EXPERIMENTS ADD Notes NVARCHAR(500) NULL;
+    IF OBJECT_ID('dbo.FK_Exp_Recordings', 'F') IS NOT NULL
+        ALTER TABLE dbo.EXPERIMENTS DROP CONSTRAINT FK_Exp_Recordings;
+END
 GO
 
 -- 2. Table FORECAST_RESULTS: Lưu kết quả dự báo chi tiết từng bước thời gian

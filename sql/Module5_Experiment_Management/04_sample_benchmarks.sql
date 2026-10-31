@@ -8,6 +8,13 @@
 USE UAV_TrafficDB;
 GO
 
+IF COL_LENGTH('dbo.EXPERIMENTS', 'Notes') IS NULL
+    ALTER TABLE dbo.EXPERIMENTS ADD Notes NVARCHAR(500) NULL;
+GO
+IF OBJECT_ID('dbo.FK_Exp_Recordings', 'F') IS NOT NULL
+    ALTER TABLE dbo.EXPERIMENTS DROP CONSTRAINT FK_Exp_Recordings;
+GO
+
 SET NOCOUNT ON;
 
 -- 1. Nạp thực nghiệm mẫu 01: ARIMA(2,1,2)
