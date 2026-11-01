@@ -16,6 +16,9 @@ from datetime import datetime
 
 # Import module kết nối CSDL SQL Server
 try:
+    import importlib
+    import db_config
+    importlib.reload(db_config)
     from db_config import test_db_connection, run_query, call_procedure, execute_non_query
     DB_CONNECTED, DB_MSG, DB_VERSION = test_db_connection()
 except Exception as ex:
@@ -111,6 +114,7 @@ with st.sidebar:
     is_admin = "Administrator" in user_role
     is_researcher = "Researcher" in user_role
     is_student = "Student" in user_role
+    can_run_etl = is_admin or is_researcher
 
     selected_window = st.selectbox(
         "Khoảng gom cụm (Window):",
