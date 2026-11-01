@@ -219,7 +219,7 @@ with tab1:
                 SELECT 
                     DATEADD(minute, CAST(FLOOR(TimestampSec / 60.0) AS INT), '2026-10-10 07:00:00') AS WindowTimestamp,
                     AVG(DensityVehPerKm) AS Density_veh_per_km,
-                    AVG(SpeedKmh) AS AvgSpeedKmh,
+                    AVG(SpeedKmh) AS AvgSpeed_kmh,
                     COUNT(DISTINCT TrackID) AS VehicleCount,
                     CASE WHEN AVG(SpeedKmh) < 10 THEN N'Ùn tắc cao' WHEN AVG(SpeedKmh) < 25 THEN N'Chậm' ELSE N'Thông thoáng' END AS CongestionLevel
                 FROM dbo.TrafficObservation
@@ -234,6 +234,22 @@ with tab1:
         df_ts = get_mock_ts()
 
     if df_ts.empty or len(df_ts) < 3:
+        df_ts = get_mock_ts()
+
+    # Đảm bảo chuẩn hóa tên cột tránh lỗi KeyError
+    col_aliases = {
+        "avgspeedkmh": "AvgSpeed_kmh",
+        "avgspeed_kmh": "AvgSpeed_kmh",
+        "densityvehperkm": "Density_veh_per_km",
+        "density_veh_per_km": "Density_veh_per_km",
+        "windowtimestamp": "WindowTimestamp",
+    }
+    for c in list(df_ts.columns):
+        k = str(c).strip().lower()
+        if k in col_aliases and col_aliases[k] not in df_ts.columns:
+            df_ts[col_aliases[k]] = df_ts[c]
+
+    if "AvgSpeed_kmh" not in df_ts.columns or "Density_veh_per_km" not in df_ts.columns:
         df_ts = get_mock_ts()
 
     fig = go.Figure()
@@ -275,7 +291,6 @@ with tab2:
             df_frames = pd.DataFrame()
 
         if df_frames.empty:
-            # Tạo dữ liệu quỹ đạo demo qua giao lộ (Roundabout)
             angles = np.linspace(0, 2*np.pi, 200)
             df_frames = pd.DataFrame({
                 "CoordinateX_m": 100 + 40 * np.cos(angles) + np.random.normal(0, 2, 200),
@@ -311,6 +326,9 @@ with tab2:
                 ORDER BY [Số điểm di chuyển] DESC
             """)
         else:
+            df_hot = pd.DataFrame()
+
+        if df_hot.empty:
             df_hot = pd.DataFrame({
                 "Vùng X": ["80m - 100m", "100m - 120m", "60m - 80m"],
                 "Vùng Y": ["90m - 110m", "100m - 120m", "80m - 100m"],
@@ -329,7 +347,7 @@ with tab3:
     st.markdown("""
     Theo câu hỏi nghiên cứu **RQ2**: *Các khoảng thời gian gom cụm (1m, 5m, 15m) ảnh hưởng thế nào đến độ nhiễu và độ trễ phản hồi của chuỗi thời gian?*
     """)
-    st.dataframe(df_ts, use_container_width=True)
+    st.dataframe(df_ts, use_container_width=True, hide_index=True)
 
 # -----------------------------------------------------------------------------------
 # TAB 4: DỰ BÁO ÙN TẮC NGẮN HẠN (ARIMA VS PROPHET)
@@ -365,12 +383,17 @@ with tab4:
             ORDER BY M.RMSE ASC
         """)
     else:
+        df_forecast = pd.DataFrame()
+        df_metrics = pd.DataFrame()
+
+    if df_forecast.empty:
         df_forecast = pd.DataFrame({
             "ForecastTime": pd.date_range("2026-10-10 07:45:00", periods=5, freq="5min"),
             "ActualDensity": [84.0, 70.4, 52.0, 38.4, 28.0],
             "Dự báo ARIMA": [86.5, 73.2, 55.4, 41.0, 30.5],
             "Dự báo Prophet": [85.1, 71.8, 53.6, 39.8, 29.5]
         })
+    if df_metrics.empty:
         df_metrics = pd.DataFrame({
             "Mô hình": ["Facebook Prophet", "ARIMA(2,1,2)"],
             "Cửa sổ": ["5min", "5min"],
@@ -424,6 +447,9 @@ with tab5:
             ORDER BY ExperimentID DESC
         """)
     else:
+        df_exps = pd.DataFrame()
+
+    if df_exps.empty:
         df_exps = pd.DataFrame({
             "ExperimentID": [1, 2],
             "ExperimentName": ["Dự báo ARIMA", "Dự báo Prophet"],
@@ -451,6 +477,9 @@ with tab6:
         if DB_CONNECTED:
             df_audit = run_query("SELECT TOP 50 LogID, LogTime, Username, ActionType, TargetTable, RecordKey, Description, HostName FROM dbo.AUDIT_LOGS ORDER BY LogID DESC")
         else:
+            df_audit = pd.DataFrame()
+
+        if df_audit.empty:
             df_audit = pd.DataFrame({
                 "LogID": [1, 2],
                 "LogTime": [datetime.now(), datetime.now()],
@@ -463,4 +492,4 @@ with tab6:
         st.dataframe(df_audit, use_container_width=True, hide_index=True)
     
     st.markdown("---")
-    st.info("💡 **Gợi ý cho buổi bảo vệ:** Nhóm có thể mở file `sql/06_transactions_and_concurrency.sql` để biểu diễn Transaction rollback và giải thích cơ chế Deadlock cho thầy cô!")
+    st.info("💡 **Gợi ý cho buổi bảo vệ:** Nhóm có thể mở các file trong thư mục `sql/` để biểu diễn Stored Procedures, Triggers và giải thích cơ chế kiểm toán dữ liệu cho thầy cô!")
