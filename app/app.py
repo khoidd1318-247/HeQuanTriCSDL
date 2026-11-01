@@ -145,20 +145,36 @@ with st.sidebar:
 # ===================================================================================
 # DỮ LIỆU DEMO DỰ PHÒNG NẾU SQL SERVER CHƯA BẬT
 # ===================================================================================
-def get_mock_ts():
-    times = pd.date_range("2026-10-10 07:00:00", periods=14, freq="5min")
-    density = [25.6, 36.0, 46.4, 60.0, 73.6, 92.0, 102.4, 108.0, 96.0, 84.0, 70.4, 52.0, 38.4, 28.0]
-    speed = [42.5, 38.2, 34.0, 27.5, 21.0, 14.5, 11.2, 9.8, 12.0, 16.5, 22.0, 29.0, 36.5, 41.0]
-    count = [32, 45, 58, 75, 92, 115, 128, 135, 120, 105, 88, 65, 48, 35]
-    levels = [
-        "Thông thoáng", "Bình thường", "Bình thường", "Đông đúc", "Đông đúc",
-        "Ùn tắc nghiêm trọng", "Ùn tắc nghiêm trọng", "Ùn tắc nghiêm trọng",
-        "Ùn tắc nghiêm trọng", "Đông đúc", "Đông đúc", "Bình thường", "Bình thường", "Thông thoáng"
-    ]
+def get_mock_ts(rec="REC_IND_01", window="5min"):
+    win_min = int(window.replace('min', '')) if 'min' in str(window) else 5
+    periods = max(6, 60 // win_min)
+    times = pd.date_range("2026-10-10 07:00:00", periods=periods, freq=f"{win_min}min")
+    
+    if "PNEUMA" in str(rec).upper():
+        # pNEUMA: Trục đại lộ Athens, tốc độ trung bình cao hơn, mật độ thấp hơn
+        base_speed = 52.0
+        wave = np.sin(np.linspace(0, np.pi, periods))
+        speed = np.clip(base_speed - 16.0 * wave, 20.0, 60.0)
+        density = np.clip(18.0 + 38.0 * wave, 10.0, 70.0)
+    elif "02" in str(rec):
+        # REC_IND_02: Đợt bay giao lộ thông thoáng
+        base_speed = 46.0
+        wave = np.sin(np.linspace(0, np.pi, periods))
+        speed = np.clip(base_speed - 22.0 * wave, 15.0, 50.0)
+        density = np.clip(22.0 + 55.0 * wave, 15.0, 85.0)
+    else:
+        # REC_IND_01: Giao lộ inD giờ cao điểm ùn tắc rõ rệt (mô hình Greenshields chuẩn)
+        base_speed = 42.0
+        wave = np.sin(np.linspace(0, np.pi, periods))
+        speed = np.clip(base_speed - 32.0 * wave, 8.5, 45.0)
+        density = np.clip(25.0 + 80.0 * wave, 20.0, 105.0)
+
+    count = [int(d * 1.25) for d in density]
+    levels = ["Ùn tắc cao" if s < 15 else ("Chậm" if s < 30 else "Thông thoáng") for s in speed]
     return pd.DataFrame({
         "WindowTimestamp": times,
-        "Density_veh_per_km": density,
-        "AvgSpeed_kmh": speed,
+        "Density_veh_per_km": np.round(density, 2),
+        "AvgSpeed_kmh": np.round(speed, 2),
         "VehicleCount": count,
         "CongestionLevel": levels
     })
@@ -206,6 +222,9 @@ with tab1:
     st.markdown("---")
     st.subheader("📈 Diễn biến Mật độ & Vận tốc Dòng xe (Spatial-Temporal Trend)")
     
+    win_min = int(selected_window.replace('min', '')) if 'min' in str(selected_window) else 5
+    win_sec = max(60, win_min * 60)
+    
     if DB_CONNECTED:
         df_ts = run_query(f"""
             SELECT WindowTimestamp, Density_veh_per_km, AvgSpeed_kmh, VehicleCount, CongestionLevel
@@ -214,27 +233,29 @@ with tab1:
             ORDER BY WindowTimestamp ASC
         """)
         if df_ts.empty or len(df_ts) < 3:
-            # Tự động tổng hợp chuỗi thời gian liên tục từ 2,100 bản ghi dbo.TrafficObservation
-            df_obs_ts = run_query("""
+            # Tự động tổng hợp chuỗi thời gian liên tục từ 2,100 bản ghi dbo.TrafficObservation theo đúng đợt bay và cửa sổ
+            rec_tag = selected_rec.split('_')[1] if '_' in selected_rec else 'IND'
+            df_obs_ts = run_query(f"""
                 SELECT 
-                    DATEADD(minute, CAST(FLOOR(TimestampSec / 60.0) AS INT), '2026-10-10 07:00:00') AS WindowTimestamp,
+                    DATEADD(minute, CAST(FLOOR(TimestampSec / {win_sec}.0) * {win_min} AS INT), '2026-10-10 07:00:00') AS WindowTimestamp,
                     AVG(DensityVehPerKm) AS Density_veh_per_km,
                     AVG(SpeedKmh) AS AvgSpeed_kmh,
                     COUNT(DISTINCT TrackID) AS VehicleCount,
                     CASE WHEN AVG(SpeedKmh) < 10 THEN N'Ùn tắc cao' WHEN AVG(SpeedKmh) < 25 THEN N'Chậm' ELSE N'Thông thoáng' END AS CongestionLevel
                 FROM dbo.TrafficObservation
-                GROUP BY FLOOR(TimestampSec / 60.0)
+                WHERE RecordingID = '{selected_rec}' OR Dataset LIKE '%{rec_tag}%'
+                GROUP BY FLOOR(TimestampSec / {win_sec}.0)
                 ORDER BY WindowTimestamp ASC
             """)
             if not df_obs_ts.empty and len(df_obs_ts) >= 3:
                 df_ts = df_obs_ts
             else:
-                df_ts = get_mock_ts()
+                df_ts = get_mock_ts(selected_rec, selected_window)
     else:
-        df_ts = get_mock_ts()
+        df_ts = get_mock_ts(selected_rec, selected_window)
 
     if df_ts.empty or len(df_ts) < 3:
-        df_ts = get_mock_ts()
+        df_ts = get_mock_ts(selected_rec, selected_window)
 
     # Đảm bảo chuẩn hóa tên cột tránh lỗi KeyError
     col_aliases = {
