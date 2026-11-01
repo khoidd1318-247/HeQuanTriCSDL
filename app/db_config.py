@@ -111,3 +111,22 @@ def call_procedure(proc_name, params=None):
     except Exception as e:
         print(f"Lỗi gọi Stored Procedure [{proc_name}]: {e}")
         return pd.DataFrame()
+
+def execute_non_query(sql_query, params=None):
+    """Thực thi câu lệnh INSERT / UPDATE / DELETE / DDL trên SQL Server và commit"""
+    try:
+        conn_type, conn, srv, driver = get_connection()
+        cursor = conn.cursor()
+        if params:
+            if conn_type != "pyodbc":
+                sql_query = sql_query.replace("?", "%s")
+            cursor.execute(sql_query, params)
+        else:
+            cursor.execute(sql_query)
+        conn.commit()
+        conn.close()
+        return True, "Thực thi thành công."
+    except Exception as e:
+        print(f"Lỗi thực thi SQL Non-Query: {e}")
+        return False, str(e)
+

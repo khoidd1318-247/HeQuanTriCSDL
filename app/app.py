@@ -16,7 +16,7 @@ from datetime import datetime
 
 # Import module kết nối CSDL SQL Server
 try:
-    from db_config import test_db_connection, run_query, call_procedure
+    from db_config import test_db_connection, run_query, call_procedure, execute_non_query
     DB_CONNECTED, DB_MSG, DB_VERSION = test_db_connection()
 except Exception as ex:
     DB_CONNECTED = False
@@ -519,28 +519,142 @@ with tab4:
 # -----------------------------------------------------------------------------------
 with tab5:
     st.subheader("🧪 Danh mục Thực nghiệm (Experiment Tracking)")
-    st.markdown("Đảm bảo **tính tái lập (Reproducibility)**: Lưu trữ đầy đủ Siêu tham số, Random Seed và Phiên bản dữ liệu.")
-    
+    st.markdown("Đảm bảo **tính tái lập (Reproducibility)**: Lưu trữ đầy đủ Siêu tham số, Random Seed, Đợt bay UAV và Cửa sổ thời gian trong SQL Server.")
+
+    # CÁCH 1: Tự động nạp (Auto-seed) bộ 6 Thực nghiệm chuẩn (1min, 5min, 15min trên inD & pNEUMA) vào SQL Server nếu CSDL mới chỉ có 2 bản ghi mẫu
     if DB_CONNECTED:
-        df_exps = run_query("""
-            SELECT ExperimentID, ExperimentName, ModelAlgorithm, AggregationWindow, 
-                   TrainTestRatio, Hyperparameters, RandomSeed, CreatedAt, ExecutionStatus
-            FROM dbo.EXPERIMENTS
-            ORDER BY ExperimentID DESC
-        """)
+        df_cnt = run_query("SELECT COUNT(*) AS TotalExp FROM dbo.EXPERIMENTS")
+        if not df_cnt.empty and int(df_cnt['TotalExp'].iloc[0]) < 6:
+            seed_experiments = [
+                ("Thực nghiệm 03: Dự báo ngắn hạn ARIMA(2,1,2) - Cửa sổ 1min (inD)", "REC_IND_01", "ARIMA", "1min", 0.80, "p=2, d=1, q=2, trend=c", 42, "Completed", "Thực nghiệm đánh giá độ nhạy 1 phút (RQ2)"),
+                ("Thực nghiệm 04: Dự báo ngắn hạn Facebook Prophet - Cửa sổ 1min (inD)", "REC_IND_01", "Prophet", "1min", 0.80, "seasonality_mode=multiplicative, changepoint_prior=0.05", 42, "Completed", "Thực nghiệm Prophet trên cửa sổ 1 phút (RQ2)"),
+                ("Thực nghiệm 05: Dự báo ngắn hạn ARIMA(2,1,2) - Cửa sổ 15min (pNEUMA)", "REC_PNEUMA_01", "ARIMA", "15min", 0.80, "p=2, d=1, q=2, trend=c", 42, "Completed", "Thực nghiệm đối sánh đa đô thị pNEUMA Athens (RQ3)"),
+                ("Thực nghiệm 06: Dự báo ngắn hạn Facebook Prophet - Cửa sổ 15min (pNEUMA)", "REC_PNEUMA_01", "Prophet", "15min", 0.80, "seasonality_mode=additive, changepoint_prior=0.10", 42, "Completed", "Thực nghiệm Prophet trên tập dữ liệu pNEUMA (RQ3)")
+            ]
+            for exp_name, rec_id, algo, win, ratio, hyper, seed, status, notes in seed_experiments:
+                execute_non_query("""
+                    IF NOT EXISTS (SELECT 1 FROM dbo.EXPERIMENTS WHERE ExperimentName = ?)
+                    BEGIN
+                        INSERT INTO dbo.EXPERIMENTS (ExperimentName, RecordingID, ModelAlgorithm, AggregationWindow, TrainTestRatio, Hyperparameters, RandomSeed, ExecutionStatus, Notes)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    END
+                """, (exp_name, exp_name, rec_id, algo, win, ratio, hyper, seed, status, notes))
+
+    # CÁCH 2: Form tương tác cho phép chỉnh bộ lọc cột trái rồi bấm nạp thực nghiệm mới lưu cố định vào SQL Server
+    with st.expander("➕ Ghi nhận Thực nghiệm mới từ Bộ lọc cột trái vào CSDL SQL Server (sp_CreateExperiment)", expanded=True):
+        st.caption(
+            f"📌 **Đang đồng bộ từ Bộ lọc cột trái:** Đợt bay = `{selected_rec}` | Khoảng gom cụm (Window) = `{selected_window}`. "
+            "Bạn có thể đổi bộ lọc ở cột bên trái trước, sau đó chọn thuật toán bên dưới và bấm **Lưu cố định vào CSDL**."
+        )
+        c_f1, c_f2, c_f3 = st.columns([1.2, 2, 1])
+        with c_f1:
+            new_algo = st.selectbox("Thuật toán Dự báo (ModelAlgorithm):", ["Prophet", "ARIMA"], key="new_exp_algo")
+        with c_f2:
+            default_name = f"Thực nghiệm Dự báo {new_algo} trên {selected_rec} (Cửa sổ {selected_window})"
+            new_exp_name = st.text_input("Tên Thực nghiệm (ExperimentName):", value=default_name)
+        with c_f3:
+            new_seed = st.number_input("Random Seed:", min_value=1, max_value=99999, value=42, step=1)
+
+        c_f4, c_f5, c_f6 = st.columns([2.2, 1, 1.2])
+        with c_f4:
+            default_hyper = (
+                "seasonality_mode=multiplicative, changepoint_prior=0.05"
+                if new_algo == "Prophet"
+                else "p=2, d=1, q=2, trend=c"
+            )
+            new_hyper = st.text_input("Siêu tham số (Hyperparameters):", value=default_hyper)
+        with c_f5:
+            new_ratio = st.slider("Tỷ lệ Train/Test:", min_value=0.50, max_value=0.90, value=0.80, step=0.05)
+        with c_f6:
+            st.write("")
+            st.write("")
+            btn_save_exp = st.button(
+                "💾 Lưu cố định vào CSDL",
+                disabled=not can_run_etl,
+                use_container_width=True,
+                help="Lưu thực nghiệm mới vào bảng dbo.EXPERIMENTS và ghi nhận vào dbo.AUDIT_LOGS"
+            )
+
+        if not can_run_etl:
+            st.caption("🔒 *Chức năng ghi nhận thực nghiệm mới bị khóa đối với vai trò Chuyên viên phân tích & Sinh viên (RBAC - FR1).*")
+
+        if btn_save_exp and can_run_etl:
+            if DB_CONNECTED:
+                ok, msg = execute_non_query("""
+                    INSERT INTO dbo.EXPERIMENTS (
+                        ExperimentName, RecordingID, ModelAlgorithm, AggregationWindow,
+                        TrainTestRatio, Hyperparameters, RandomSeed, CreatedBy, ExecutionStatus, Notes
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Completed', N'Ghi nhận trực tiếp từ Dashboard Streamlit');
+
+                    INSERT INTO dbo.AUDIT_LOGS (Username, ActionType, TargetTable, RecordKey, Description)
+                    VALUES (?, 'CREATE_EXPERIMENT', 'EXPERIMENTS', ?, ?);
+                """, (
+                    new_exp_name, selected_rec, new_algo, selected_window,
+                    float(new_ratio), new_hyper, int(new_seed), user_role,
+                    user_role, f"{selected_rec}_{selected_window}", f"Đã tạo mới {new_exp_name}"
+                ))
+                if ok:
+                    st.success(f"✅ Đã nạp và lưu cố định **{new_exp_name}** vào bảng `dbo.EXPERIMENTS` trong SQL Server!")
+                    st.rerun()
+                else:
+                    st.error(f"Lỗi khi lưu thực nghiệm: {msg}")
+            else:
+                st.warning("Đang ở chế độ Offline: Vui lòng kết nối SQL Server để lưu cố định thực nghiệm.")
+
+    exp_view_filter = st.radio(
+        "Chế độ hiển thị Danh mục Thực nghiệm:",
+        [
+            "📚 Hiển thị toàn bộ Danh mục Thực nghiệm trong CSDL (Tất cả đợt bay & cửa sổ)",
+            f"🎯 Chỉ lọc các Thực nghiệm khớp với cột trái ({selected_rec} - {selected_window})"
+        ],
+        horizontal=True
+    )
+
+    if DB_CONNECTED:
+        if exp_view_filter.startswith("🎯"):
+            df_exps = run_query("""
+                SELECT ExperimentID, ExperimentName, RecordingID, ModelAlgorithm, AggregationWindow, 
+                       TrainTestRatio, Hyperparameters, RandomSeed, CreatedAt, ExecutionStatus
+                FROM dbo.EXPERIMENTS
+                WHERE RecordingID = ? AND AggregationWindow = ?
+                ORDER BY ExperimentID DESC
+            """, (selected_rec, selected_window))
+        else:
+            df_exps = run_query("""
+                SELECT ExperimentID, ExperimentName, RecordingID, ModelAlgorithm, AggregationWindow, 
+                       TrainTestRatio, Hyperparameters, RandomSeed, CreatedAt, ExecutionStatus
+                FROM dbo.EXPERIMENTS
+                ORDER BY ExperimentID DESC
+            """)
     else:
         df_exps = pd.DataFrame()
 
     if df_exps.empty:
         df_exps = pd.DataFrame({
-            "ExperimentID": [1, 2],
-            "ExperimentName": ["Dự báo ARIMA", "Dự báo Prophet"],
-            "ModelAlgorithm": ["ARIMA", "Prophet"],
-            "AggregationWindow": ["5min", "5min"],
-            "TrainTestRatio": [0.80, 0.80],
-            "Hyperparameters": ["p=2, d=1, q=2", "seasonality_mode=multiplicative"],
-            "RandomSeed": [42, 42],
-            "ExecutionStatus": ["Completed", "Completed"]
+            "ExperimentID": [6, 5, 4, 3, 2, 1],
+            "ExperimentName": [
+                "Thực nghiệm 06: Dự báo ngắn hạn Facebook Prophet - Cửa sổ 15min (pNEUMA)",
+                "Thực nghiệm 05: Dự báo ngắn hạn ARIMA(2,1,2) - Cửa sổ 15min (pNEUMA)",
+                "Thực nghiệm 04: Dự báo ngắn hạn Facebook Prophet - Cửa sổ 1min (inD)",
+                "Thực nghiệm 03: Dự báo ngắn hạn ARIMA(2,1,2) - Cửa sổ 1min (inD)",
+                "Thực nghiệm 02: Dự báo ngắn hạn bằng Facebook Prophet",
+                "Thực nghiệm 01: Dự báo ngắn hạn bằng ARIMA(2,1,2)"
+            ],
+            "RecordingID": ["REC_PNEUMA_01", "REC_PNEUMA_01", "REC_IND_01", "REC_IND_01", "REC_IND_01", "REC_IND_01"],
+            "ModelAlgorithm": ["Prophet", "ARIMA", "Prophet", "ARIMA", "Prophet", "ARIMA"],
+            "AggregationWindow": ["15min", "15min", "1min", "1min", "5min", "5min"],
+            "TrainTestRatio": [0.80, 0.80, 0.80, 0.80, 0.80, 0.80],
+            "Hyperparameters": [
+                "seasonality_mode=additive, changepoint_prior=0.10",
+                "p=2, d=1, q=2, trend=c",
+                "seasonality_mode=multiplicative, changepoint_prior=0.05",
+                "p=2, d=1, q=2, trend=c",
+                "seasonality_mode=multiplicative, changepoint_prior=0.05",
+                "p=2, d=1, q=2, trend=c"
+            ],
+            "RandomSeed": [42, 42, 42, 42, 42, 42],
+            "ExecutionStatus": ["Completed"] * 6
         })
     st.dataframe(df_exps, use_container_width=True, hide_index=True)
 

@@ -60,4 +60,16 @@ BEGIN
     INSERT INTO dbo.EXPERIMENT_METRICS (ExperimentID, MAE, RMSE, MAPE, R2_Score)
     VALUES (@Exp2, 1.4000, 1.4170, 3.08, 0.9854);
 END;
+
+-- 3. Nạp các thực nghiệm mở rộng đa độ phân giải (1min, 15min) & đa đô thị (inD, pNEUMA) phục vụ RQ2 & RQ3
+IF NOT EXISTS (SELECT 1 FROM dbo.EXPERIMENTS WHERE ExperimentName = N'Thực nghiệm 03: Dự báo ngắn hạn ARIMA(2,1,2) - Cửa sổ 1min (inD)')
+BEGIN
+    INSERT INTO dbo.EXPERIMENTS
+    (ExperimentName, RecordingID, ModelAlgorithm, AggregationWindow, TrainTestRatio, Hyperparameters, RandomSeed, ExecutionStatus, Notes)
+    VALUES
+    (N'Thực nghiệm 03: Dự báo ngắn hạn ARIMA(2,1,2) - Cửa sổ 1min (inD)', 'REC_IND_01', 'ARIMA', '1min', 0.80, 'p=2, d=1, q=2, trend=c', 42, 'Completed', N'Thực nghiệm đánh giá độ nhạy 1 phút (RQ2)'),
+    (N'Thực nghiệm 04: Dự báo ngắn hạn Facebook Prophet - Cửa sổ 1min (inD)', 'REC_IND_01', 'Prophet', '1min', 0.80, 'seasonality_mode=multiplicative, changepoint_prior=0.05', 42, 'Completed', N'Thực nghiệm Prophet trên cửa sổ 1 phút (RQ2)'),
+    (N'Thực nghiệm 05: Dự báo ngắn hạn ARIMA(2,1,2) - Cửa sổ 15min (pNEUMA)', 'REC_PNEUMA_01', 'ARIMA', '15min', 0.80, 'p=2, d=1, q=2, trend=c', 42, 'Completed', N'Thực nghiệm đối sánh đa đô thị pNEUMA Athens (RQ3)'),
+    (N'Thực nghiệm 06: Dự báo ngắn hạn Facebook Prophet - Cửa sổ 15min (pNEUMA)', 'REC_PNEUMA_01', 'Prophet', '15min', 0.80, 'seasonality_mode=additive, changepoint_prior=0.10', 42, 'Completed', N'Thực nghiệm Prophet trên tập dữ liệu pNEUMA (RQ3)');
+END;
 GO
