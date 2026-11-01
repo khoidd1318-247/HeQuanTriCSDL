@@ -1,4 +1,4 @@
-v\
+
 /*
     Test 03: Average speed statistics
     Database: UAV_TrafficDB
@@ -80,8 +80,8 @@ IF EXISTS (
             ValidSpeedCount = 0
             AND (
                 AverageSpeedKmh IS NOT NULL
-                OR MinSpeedKmh IS NOT NULL
-                OR MaxSpeedKmh IS NOT NULL
+                OR MinimumSpeedKmh IS NOT NULL
+                OR MaximumSpeedKmh IS NOT NULL
             )
         )
         OR
@@ -89,13 +89,13 @@ IF EXISTS (
             ValidSpeedCount > 0
             AND (
                 AverageSpeedKmh IS NULL
-                OR MinSpeedKmh IS NULL
-                OR MaxSpeedKmh IS NULL
-                OR MinSpeedKmh < 0
-                OR MaxSpeedKmh > 200
-                OR MinSpeedKmh > MaxSpeedKmh
-                OR AverageSpeedKmh < MinSpeedKmh
-                OR AverageSpeedKmh > MaxSpeedKmh
+                OR MinimumSpeedKmh IS NULL
+                OR MaximumSpeedKmh IS NULL
+                OR MinimumSpeedKmh < 0
+                OR MaximumSpeedKmh > 200
+                OR MinimumSpeedKmh > MaximumSpeedKmh
+                OR AverageSpeedKmh < MinimumSpeedKmh
+                OR AverageSpeedKmh > MaximumSpeedKmh
             )
         )
 )
