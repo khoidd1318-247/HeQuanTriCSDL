@@ -213,10 +213,27 @@ with tab1:
             WHERE RecordingID = '{selected_rec}' AND AggregationWindow = '{selected_window}'
             ORDER BY WindowTimestamp ASC
         """)
+        if df_ts.empty or len(df_ts) < 3:
+            # Tự động tổng hợp chuỗi thời gian liên tục từ 2,100 bản ghi dbo.TrafficObservation
+            df_obs_ts = run_query("""
+                SELECT 
+                    DATEADD(minute, CAST(FLOOR(TimestampSec / 60.0) AS INT), '2026-10-10 07:00:00') AS WindowTimestamp,
+                    AVG(DensityVehPerKm) AS Density_veh_per_km,
+                    AVG(SpeedKmh) AS AvgSpeedKmh,
+                    COUNT(DISTINCT TrackID) AS VehicleCount,
+                    CASE WHEN AVG(SpeedKmh) < 10 THEN N'Ùn tắc cao' WHEN AVG(SpeedKmh) < 25 THEN N'Chậm' ELSE N'Thông thoáng' END AS CongestionLevel
+                FROM dbo.TrafficObservation
+                GROUP BY FLOOR(TimestampSec / 60.0)
+                ORDER BY WindowTimestamp ASC
+            """)
+            if not df_obs_ts.empty and len(df_obs_ts) >= 3:
+                df_ts = df_obs_ts
+            else:
+                df_ts = get_mock_ts()
     else:
         df_ts = get_mock_ts()
 
-    if df_ts.empty:
+    if df_ts.empty or len(df_ts) < 3:
         df_ts = get_mock_ts()
 
     fig = go.Figure()
