@@ -1,6 +1,7 @@
 
 /*
-    Module 2: Traffic Pattern Analysis
+    Module 2: Traffic Pattern analysis
+sj
     File: 00_demo_schema.sql
 
     Purpose:
