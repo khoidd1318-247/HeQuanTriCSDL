@@ -75,28 +75,60 @@ def validate_dataset(
                 "max_utc": parsed.max().isoformat() if parsed.notna().any() else None,
             }
 
+ 
     coordinate_report = None
     if x_col or y_col:
         missing_columns = [c for c in (x_col, y_col) if c and c not in df.columns]
+
         if missing_columns:
             coordinate_report = {
                 "x_column": x_col,
                 "y_column": y_col,
                 "error": f"Coordinate column(s) not found: {missing_columns}",
             }
-        elif x_col and y_col:
+        else:
             x = pd.to_numeric(df[x_col], errors="coerce")
             y = pd.to_numeric(df[y_col], errors="coerce")
             invalid = x.isna() | y.isna()
+
             coordinate_report = {
                 "x_column": x_col,
                 "y_column": y_col,
                 "invalid_or_missing_count": int(invalid.sum()),
                 "valid_count": int((~invalid).sum()),
-                "note": "Numeric coordinates checked only; geographic bounds depend on the dataset coordinate system.",
+                "negative_x_count": int((x < 0).sum()),
+                "negative_y_count": int((y < 0).sum()),
+                "note": (
+                    "Negative coordinates are reported for review; "
+                    "they are not automatically considered invalid because "
+                    "the dataset may use a local Cartesian coordinate system."
+                )
             }
 
+
+    # Speed validation
+    speed_report = None
+    if "speed_kmh" in df.columns:
+        speed = pd.to_numeric(df["speed_kmh"], errors="coerce")
+        valid_speed = speed.dropna()
+
+        speed_report = {
+            "column": "speed_kmh",
+            "invalid_or_missing_count": int(speed.isna().sum()),
+            "valid_count": int(speed.notna().sum()),
+            "negative_count": int((speed < 0).sum()),
+            "zero_count": int((speed == 0).sum()),
+            "min_kmh": float(valid_speed.min()) if not valid_speed.empty else None,
+            "max_kmh": float(valid_speed.max()) if not valid_speed.empty else None,
+            "mean_kmh": float(valid_speed.mean()) if not valid_speed.empty else None,
+            "note": "Zero speed may indicate a stopped vehicle; negative speed values should be reviewed."
+        }
+
+
+
     return {
+        "coordinate_check": coordinate_report,
+        "speed_check": speed_report,
         "row_count": int(len(df)),
         "column_count": int(len(df.columns)),
         "columns": [str(c) for c in df.columns],
@@ -125,12 +157,16 @@ def create_metadata(path: str | Path, df: pd.DataFrame, source_name: str | None 
         "columns": [str(c) for c in df.columns],
         "purpose": "UAV-collected urban traffic dataset; purpose/coverage should be completed by the team.",
     }
-
+def has_file_changed(path: str | Path, previous_sha256: str) -> bool:
+    """Check whether a file has changed since its previous checksum."""
+    current_sha256 = sha256_file(Path(path))
+    return current_sha256 != previous_sha256
 
 def write_json(payload: dict[str, Any], output_path: str | Path) -> None:
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
 
 
 def main() -> None:
@@ -148,7 +184,31 @@ def main() -> None:
 
     df = read_dataset(args.dataset, sep=args.sep, nrows=args.sample_rows)
     report = validate_dataset(df, args.timestamp_col, args.x_col, args.y_col)
+
+    # Load previous metadata if available
+    metadata_path = Path(args.metadata)
+    previous_sha256 = None
+
+    if metadata_path.exists():
+        try:
+            previous_metadata = json.loads(
+                metadata_path.read_text(encoding="utf-8")
+            )
+            previous_sha256 = previous_metadata.get("sha256")
+        except (json.JSONDecodeError, OSError):
+            previous_sha256 = None
+
+    # Create current metadata
     metadata = create_metadata(args.dataset, df, args.name)
+
+    # Compare current checksum with previous checksum
+    if previous_sha256:
+        metadata["file_changed"] = has_file_changed(
+            args.dataset, previous_sha256
+        )
+    else:
+        metadata["file_changed"] = None
+
     write_json(report, args.report)
     write_json(metadata, args.metadata)
 

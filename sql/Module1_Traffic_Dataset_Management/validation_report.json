@@ -1,0 +1,60 @@
+{
+  "coordinate_check": {
+    "x_column": "x",
+    "y_column": "y",
+    "invalid_or_missing_count": 0,
+    "valid_count": 2100,
+    "negative_x_count": 0,
+    "negative_y_count": 0,
+    "note": "Negative coordinates are reported for review; they are not automatically considered invalid because the dataset may use a local Cartesian coordinate system."
+  },
+  "speed_check": {
+    "column": "speed_kmh",
+    "invalid_or_missing_count": 0,
+    "valid_count": 2100,
+    "negative_count": 0,
+    "zero_count": 0,
+    "min_kmh": 8.18,
+    "max_kmh": 53.9,
+    "mean_kmh": 35.801904761904765,
+    "note": "Zero speed may indicate a stopped vehicle; negative speed values should be reviewed."
+  },
+  "row_count": 2100,
+  "column_count": 11,
+  "columns": [
+    "dataset",
+    "recording_id",
+    "track_id",
+    "timestamp_sec",
+    "timestamp",
+    "vehicle_type",
+    "x",
+    "y",
+    "speed_kmh",
+    "density_veh_per_km",
+    "flow_veh_per_min"
+  ],
+  "dtypes": {
+    "dataset": "str",
+    "recording_id": "str",
+    "track_id": "int64",
+    "timestamp_sec": "float64",
+    "timestamp": "str",
+    "vehicle_type": "str",
+    "x": "float64",
+    "y": "float64",
+    "speed_kmh": "float64",
+    "density_veh_per_km": "float64",
+    "flow_veh_per_min": "float64"
+  },
+  "missing_cells_total": 0,
+  "missing_by_column": {},
+  "duplicate_full_rows": 0,
+  "timestamp_check": {
+    "column": "timestamp",
+    "invalid_count": 0,
+    "valid_count": 2100,
+    "min_utc": "2026-10-18T07:30:05+00:00",
+    "max_utc": "2026-10-18T08:29:51+00:00"
+  }
+}

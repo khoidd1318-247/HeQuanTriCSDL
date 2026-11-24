@@ -1,0 +1,25 @@
+{
+  "dataset_name": "UAV Traffic Sample",
+  "source_file": "uav_traffic_sample.csv",
+  "file_size_bytes": 187815,
+  "sha256": "8a97b88df00074fdd72a98d4049e696f78fe39e66ffca70ce58a7019f282f66f",
+  "format": "csv",
+  "inspected_at_utc": "2026-11-24T14:44:50.883109+00:00",
+  "row_count": 2100,
+  "column_count": 11,
+  "columns": [
+    "dataset",
+    "recording_id",
+    "track_id",
+    "timestamp_sec",
+    "timestamp",
+    "vehicle_type",
+    "x",
+    "y",
+    "speed_kmh",
+    "density_veh_per_km",
+    "flow_veh_per_min"
+  ],
+  "purpose": "UAV-collected urban traffic dataset; purpose/coverage should be completed by the team.",
+  "file_changed": true
+}
